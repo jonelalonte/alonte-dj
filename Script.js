@@ -36,13 +36,13 @@ const eqFrequencies = [
     1000, 2000, 4000, 8000, 16000
 ];
 
-const $ = id => document.getElementById(id);
+const \$ = id => document.getElementById(id);
 
 const clamp = (value, min, max) =>
     Math.min(max, Math.max(min, value));
 
 function setStatus(message) {
-    const status = $("status");
+    const status = \$("status");
     if (status) status.textContent = message;
 }
 
@@ -77,7 +77,7 @@ function applyChannelGain(deck) {
 }
 
 function initAudioContext(deck) {
-    const audio = $(`audio${deck}`);
+    const audio = \$(`audio${deck}`);
     const context = ensureAudioContext();
 
     if (!audio || !context || deckSources[deck]) return;
@@ -175,7 +175,7 @@ function initAudioContext(deck) {
         delay.connect(wet);
         wet.connect(channelGain);
 
-        const levelSlider = $(`level${deck}`);
+        const levelSlider = \$(`level${deck}`);
 
         if (levelSlider) {
             deckBaseLevels[deck] = clamp(
@@ -202,7 +202,7 @@ function initAudioContext(deck) {
 function updateCrossfader() {
     if (!audioCtx) return;
 
-    const slider = $("crossfader");
+    const slider = \$("crossfader");
     const position = slider
         ? clamp(Number(slider.value), 0, 100) / 100
         : 0.5;
@@ -227,12 +227,12 @@ function updateCrossfader() {
     }
 }
 
-$("crossfader")?.addEventListener("input", updateCrossfader);
+\$("crossfader")?.addEventListener("input", updateCrossfader);
 
 document.addEventListener("DOMContentLoaded", () => {
-    const crossfader = $("crossfader");
-    const leftButton = $("cfLeftBtn");
-    const rightButton = $("cfRightBtn");
+    const crossfader = \$("crossfader");
+    const leftButton = \$("cfLeftBtn");
+    const rightButton = \$("cfRightBtn");
 
     const TRANSITION_DURATION = 5000;
     let transitionFrame = null;
@@ -286,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ===================== PLAY / PAUSE / CUE ===================== */
 
 async function playTrack(deck) {
-    const audio = $(`audio${deck}`);
+    const audio = \$(`audio${deck}`);
 
     if (!audio || !audio.src) {
         alert(`Load a music file into Deck ${deck} first.`);
@@ -311,7 +311,7 @@ async function playTrack(deck) {
 }
 
 function pauseTrack(deck) {
-    const audio = $(`audio${deck}`);
+    const audio = \$(`audio${deck}`);
     if (!audio) return;
 
     audio.pause();
@@ -319,7 +319,7 @@ function pauseTrack(deck) {
 }
 
 function cueTrack(deck) {
-    const audio = $(`audio${deck}`);
+    const audio = \$(`audio${deck}`);
     if (!audio) return;
 
     audio.pause();
@@ -336,11 +336,11 @@ function cueTrack(deck) {
 const trackLoadRequests = { A: 0, B: 0 };
 
 ["A", "B"].forEach(deck => {
-    const fileInput = $(`file${deck}`);
-    const audio = $(`audio${deck}`);
-    const name = $(`name${deck}`);
-    const bpmDisplay = $(`bpmDisplay${deck}`);
-    const pitchSlider = $(`pitch${deck}`);
+    const fileInput = \$(`file${deck}`);
+    const audio = \$(`audio${deck}`);
+    const name = \$(`name${deck}`);
+    const bpmDisplay = \$(`bpmDisplay${deck}`);
+    const pitchSlider = \$(`pitch${deck}`);
 
     if (!fileInput || !audio) {
         console.error(`Missing file input or audio element for Deck ${deck}.`);
@@ -400,34 +400,33 @@ const trackLoadRequests = { A: 0, B: 0 };
 
         setStatus(`Deck ${deck}: music loaded, detecting BPM...`);
 
-        const formData = new FormData();
-        formData.append("audio", file, file.name);
-
+        // Subukan muna sa Local Python Server (kung bukas), tapos mag-fallback sa Browser JS BPM Detection (para sa Vercel)
         try {
-            const response = await fetch(
-                "http://127.0.0.1:5000/detect-bpm",
-                {
+            let bpm = null;
+            try {
+                const formData = new FormData();
+                formData.append("audio", file, file.name);
+                const response = await fetch("http://127.0.0.1:5000/detect-bpm", {
                     method: "POST",
                     body: formData
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Number.isFinite(Number(data.bpm))) bpm = Number(data.bpm);
                 }
-            );
+            } catch (e) {
+                console.log("Local Python server offline. Using in-browser JS BPM engine...");
+            }
 
-            const data = await response.json();
+            // Client-Side Fallback BPM Engine kung walang Python backend (Vercel deployment)
+            if (!bpm) {
+                const context = ensureAudioContext();
+                const bytes = await file.arrayBuffer();
+                const audioBuffer = await context.decodeAudioData(bytes.slice(0));
+                bpm = await analyzeBPM(audioBuffer);
+            }
 
             if (requestId !== trackLoadRequests[deck]) return;
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error ||
-                    `Python server returned HTTP ${response.status}`
-                );
-            }
-
-            const bpm = Number(data.bpm);
-
-            if (!Number.isFinite(bpm) || bpm <= 0) {
-                throw new Error(data.error || "Invalid BPM returned by Python.");
-            }
 
             audio.dataset.originalBpm = String(bpm);
 
@@ -448,15 +447,13 @@ const trackLoadRequests = { A: 0, B: 0 };
             delete audio.dataset.originalBpm;
 
             if (bpmDisplay) {
-                bpmDisplay.textContent = "BPM ERROR";
+                bpmDisplay.textContent = "BPM N/A";
                 bpmDisplay.style.display = "";
                 bpmDisplay.style.visibility = "visible";
                 bpmDisplay.style.opacity = "1";
             }
 
-            setStatus(
-                `Deck ${deck}: music loaded, but BPM detection failed: ${error.message}`
-            );
+            setStatus(`Deck ${deck}: music loaded (BPM Analysis skipped)`);
         }
 
         drawMasterOverview();
@@ -552,8 +549,8 @@ async function analyzeBPM(buffer) {
 
 function syncTrack(deck) {
     const otherDeck = deck === "A" ? "B" : "A";
-    const target = $(`audio${deck}`);
-    const source = $(`audio${otherDeck}`);
+    const target = \$(`audio${deck}`);
+    const source = \$(`audio${otherDeck}`);
 
     if (!target?.src || !source?.src) {
         alert("Load a track into both decks before using SYNC.");
@@ -574,7 +571,7 @@ function syncTrack(deck) {
     const desiredRate =
         (sourceBpm * source.playbackRate) / targetBpm;
 
-    const slider = $(`pitch${deck}`);
+    const slider = \$(`pitch${deck}`);
 
     const minRate = slider
         ? Math.max(0.1, 1 + Number(slider.min || -50) / 100)
@@ -615,9 +612,9 @@ function syncTrack(deck) {
 /* ===================== PITCH CONTROL ===================== */
 
 function updatePitch(deck) {
-    const slider = $(`pitch${deck}`);
-    const audio = $(`audio${deck}`);
-    const display = $(`pitchValue${deck}`);
+    const slider = \$(`pitch${deck}`);
+    const audio = \$(`audio${deck}`);
+    const display = \$(`pitchValue${deck}`);
 
     if (!slider || !audio) return;
 
@@ -633,7 +630,7 @@ function updatePitch(deck) {
 }
 
 function resetPitch(deck) {
-    const slider = $(`pitch${deck}`);
+    const slider = \$(`pitch${deck}`);
     if (!slider) return;
 
     slider.value = 0;
@@ -641,14 +638,14 @@ function resetPitch(deck) {
 }
 
 ["A", "B"].forEach(deck => {
-    $(`pitch${deck}`)?.addEventListener("input", () => updatePitch(deck));
+    \$(`pitch${deck}`)?.addEventListener("input", () => updatePitch(deck));
 
-    $(`play${deck}`)?.addEventListener("click", () => playTrack(deck));
-    $(`pause${deck}`)?.addEventListener("click", () => pauseTrack(deck));
-    $(`cue${deck}`)?.addEventListener("click", () => cueTrack(deck));
-    $(`sync${deck}`)?.addEventListener("click", () => syncTrack(deck));
+    \$(`play${deck}`)?.addEventListener("click", () => playTrack(deck));
+    \$(`pause${deck}`)?.addEventListener("click", () => pauseTrack(deck));
+    \$(`cue${deck}`)?.addEventListener("click", () => cueTrack(deck));
+    \$(`sync${deck}`)?.addEventListener("click", () => syncTrack(deck));
 
-    $(`pitchReset${deck}`)?.addEventListener(
+    \$(`pitchReset${deck}`)?.addEventListener(
         "click",
         () => resetPitch(deck)
     );
@@ -666,11 +663,11 @@ function formatTime(seconds) {
 }
 
 ["A", "B"].forEach(deck => {
-    const audio = $(`audio${deck}`);
+    const audio = \$(`audio${deck}`);
     if (!audio) return;
 
     function updateTime() {
-        const display = $(`timeDisplay${deck}`);
+        const display = \$(`timeDisplay${deck}`);
 
         if (display) {
             display.textContent = formatTime(audio.currentTime);
@@ -688,8 +685,8 @@ function formatTime(seconds) {
 /* ===================== JOG WHEEL / SCRATCH ===================== */
 
 ["A", "B"].forEach(deck => {
-    const audio = $(`audio${deck}`);
-    const jog = $(`jog${deck}`);
+    const audio = \$(`audio${deck}`);
+    const jog = \$(`jog${deck}`);
 
     if (!audio || !jog || jog.dataset.jogInitialized === "true") return;
 
@@ -700,7 +697,6 @@ function formatTime(seconds) {
     let totalRotation = 0;
     let wasPlaying = false;
     let basePlaybackRate = 1;
-    let lastScratchTime = 0;
 
     const SCRATCH_SEEK_SPEED = 0.035;
     const SCRATCH_RATE_SPEED = 0.12;
@@ -735,7 +731,6 @@ function formatTime(seconds) {
         wasPlaying = !audio.paused;
         basePlaybackRate = audio.playbackRate || 1;
         lastAngle = getPointerAngle(event);
-        lastScratchTime = performance.now();
 
         jog.classList.add("scratching");
         jog.classList.remove("playing");
@@ -765,14 +760,11 @@ function formatTime(seconds) {
             return;
         }
 
-        // Move the track position with the jog wheel.
         const nextTime =
             audio.currentTime + delta * SCRATCH_SEEK_SPEED;
 
         audio.currentTime = clamp(nextTime, 0, audio.duration);
 
-        // Add an audible speed change while scratching.
-        // HTML audio cannot use a negative playbackRate for true reverse audio.
         if (wasPlaying && !audio.paused) {
             const rateChange = delta * SCRATCH_RATE_SPEED;
 
@@ -794,7 +786,6 @@ function formatTime(seconds) {
         jog.classList.remove("scratching");
         jog.style.cursor = "grab";
 
-        // Restore the pitch setting that was active before scratching.
         audio.playbackRate = basePlaybackRate;
 
         if (wasPlaying) {
@@ -823,7 +814,6 @@ function formatTime(seconds) {
 });
 
 
-
 /* ===================== CHANNEL LEVEL ===================== */
 
 document.querySelectorAll(".vertical-slider").forEach(slider => {
@@ -844,16 +834,16 @@ document.querySelectorAll(".vertical-slider").forEach(slider => {
 function updateEqualizer() {
     if (!audioCtx) return;
 
-    const enabled = $("eqOnCheck")
-        ? $("eqOnCheck").checked
+    const enabled = \$("eqOnCheck")
+        ? \$("eqOnCheck").checked
         : true;
 
-    const masterSlider = $("eqMasterGain");
+    const masterSlider = \$("eqMasterGain");
     const masterDb = masterSlider ? Number(masterSlider.value) : 0;
     const masterLinear = Math.pow(10, masterDb / 20);
 
-    if ($("eqMasterValue")) {
-        $("eqMasterValue").textContent =
+    if (\$("eqMasterValue")) {
+        \$("eqMasterValue").textContent =
             `${masterDb > 0 ? "+" : ""}${masterDb} dB`;
     }
 
@@ -877,7 +867,7 @@ function updateEqualizer() {
                     0.02
                 );
 
-                const output = $(`eqValue${frequency}`);
+                const output = \$(`eqValue${frequency}`);
 
                 if (output) {
                     output.textContent =
@@ -922,7 +912,7 @@ function applyEqualizerPreset(presetName) {
 }
 
 function initializeEqualizerControls() {
-    const panel = $("equalizerPanel");
+    const panel = \$("equalizerPanel");
 
     if (!panel || panel.dataset.eqInitialized === "true") return;
 
@@ -932,11 +922,11 @@ function initializeEqualizerControls() {
         slider.addEventListener("input", updateEqualizer);
     });
 
-    $("eqOnCheck")?.addEventListener("change", updateEqualizer);
+    \$("eqOnCheck")?.addEventListener("change", updateEqualizer);
 
-    $("eqMasterGain")?.addEventListener("input", updateEqualizer);
+    \$("eqMasterGain")?.addEventListener("input", updateEqualizer);
 
-    $("eqPreset")?.addEventListener("change", event => {
+    \$("eqPreset")?.addEventListener("change", event => {
         applyEqualizerPreset(event.target.value);
     });
 
@@ -944,7 +934,7 @@ function initializeEqualizerControls() {
 }
 
 function toggleEqualizer() {
-    $("equalizerPanel")?.classList.toggle("eq-open");
+    \$("equalizerPanel")?.classList.toggle("eq-open");
 }
 
 /* ===================== MIXER KNOBS ===================== */
@@ -1047,7 +1037,7 @@ document.querySelectorAll(".mixer-strip").forEach((strip, stripIndex) => {
 
 function updateLedMeter(deck) {
     const analyser = deckAnalysers[deck];
-    const container = $(`meter${deck}`);
+    const container = \$(`meter${deck}`);
 
     if (!analyser || !container) return;
 
@@ -1087,9 +1077,9 @@ function initializePartialWaveforms() {
     ["A", "B"].forEach(deck => {
         const wf = partialWaveforms[deck];
 
-        wf.canvas = $(`deck${deck}Waveform`);
+        wf.canvas = \$(`deck${deck}Waveform`);
         wf.ctx = wf.canvas ? wf.canvas.getContext("2d") : null;
-        wf.audioEl = $(`audio${deck}`);
+        wf.audioEl = \$(`audio${deck}`);
     });
 
     if (!partialWaveformAnimationStarted) {
@@ -1314,7 +1304,6 @@ function enableDraggableWaveforms() {
 
             if (!moved) return;
 
-            // Drag right = rewind; drag left = move forward
             const newTime = startTime - deltaX * secondsPerPixel();
 
             seekTo(newTime);
@@ -1326,7 +1315,6 @@ function enableDraggableWaveforms() {
             dragging = false;
             wrapper.style.cursor = "grab";
 
-            // Keep the waveform's new position; don't pause the deck.
             setTimeout(() => {
                 moved = false;
             }, 100);
@@ -1345,11 +1333,10 @@ function enableDraggableWaveforms() {
     });
 }
 
-enableDraggableWaveforms();
 /* ===================== MASTER WAVEFORM LOADING ===================== */
 
 async function loadOverviewWaveform(deck, file) {
-    if (!file || !$("masterWaveform")) return;
+    if (!file || !\$("masterWaveform")) return;
 
     try {
         const context = ensureAudioContext();
@@ -1395,7 +1382,7 @@ async function loadOverviewWaveform(deck, file) {
 /* ===================== MASTER WAVEFORM DRAWING ===================== */
 
 function drawMasterOverview() {
-    const canvas = $("masterWaveform");
+    const canvas = \$("masterWaveform");
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
@@ -1422,7 +1409,6 @@ function drawMasterOverview() {
     ctx.fillStyle = "#05080c";
     ctx.fillRect(0, 0, width, height);
 
-    // Background grid
     for (let x = 0; x <= width; x += 50) {
         ctx.strokeStyle = x % 160 === 0 ? "#2a3a47" : "#111c25";
         ctx.lineWidth = 1;
@@ -1441,7 +1427,7 @@ function drawMasterOverview() {
 
     ["A", "B"].forEach(deck => {
         const samples = overviewBuffers[deck];
-        const audio = $(`audio${deck}`);
+        const audio = \$(`audio${deck}`);
 
         const centerY = deck === "A" ? height * 0.27 : height * 0.73;
         const amplitudeLimit = height * 0.20;
@@ -1510,11 +1496,6 @@ function drawMasterOverview() {
 }
 
 /* ===================== MASTER WAVEFORM SEEKING ===================== */
-
-/*
-   Upper half = Deck A
-   Lower half = Deck B
-*/
 
 (function setupMasterWaveformSeeking() {
     const canvas = $("masterWaveform");
@@ -1663,3 +1644,14 @@ window.addEventListener("resize", drawMasterOverview);
 
 initializePartialWaveforms();
 enableDraggableWaveforms();
+
+/* ===================== VERCEL / GLOBAL SCOPE EXPORTS ===================== */
+// I-bind lahat sa window object para maging accessible sa HTML onclick attributes
+window.playTrack = playTrack;
+window.pauseTrack = pauseTrack;
+window.cueTrack = cueTrack;
+window.syncTrack = syncTrack;
+window.updatePitch = updatePitch;
+window.resetPitch = resetPitch;
+window.toggleEqualizer = toggleEqualizer;
+window.updateCrossfader = updateCrossfader;
