@@ -150,7 +150,6 @@ function initAudioContext(deck) {
             eqMasterGain
         };
 
-        // Main audio path
         source.connect(analyser);
         analyser.connect(low);
         low.connect(mid);
@@ -168,7 +167,6 @@ function initAudioContext(deck) {
         eqMasterGain.connect(crossGain);
         crossGain.connect(context.destination);
 
-        // Delay FX path
         previousNode.connect(delay);
         delay.connect(feedback);
         feedback.connect(delay);
@@ -281,6 +279,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     leftButton?.addEventListener("click", () => smoothCrossfade(0));
     rightButton?.addEventListener("click", () => smoothCrossfade(100));
+    
+    initializeEqualizerControls();
 });
 
 /* ===================== PLAY / PAUSE / CUE ===================== */
@@ -342,10 +342,7 @@ const trackLoadRequests = { A: 0, B: 0 };
     const bpmDisplay = \$(`bpmDisplay${deck}`);
     const pitchSlider = \$(`pitch${deck}`);
 
-    if (!fileInput || !audio) {
-        console.error(`Missing file input or audio element for Deck ${deck}.`);
-        return;
-    }
+    if (!fileInput || !audio) return;
 
     fileInput.addEventListener("change", async event => {
         const file = event.target.files?.[0];
@@ -400,7 +397,6 @@ const trackLoadRequests = { A: 0, B: 0 };
 
         setStatus(`Deck ${deck}: music loaded, detecting BPM...`);
 
-        // Subukan muna sa Local Python Server (kung bukas), tapos mag-fallback sa Browser JS BPM Detection (para sa Vercel)
         try {
             let bpm = null;
             try {
@@ -418,7 +414,6 @@ const trackLoadRequests = { A: 0, B: 0 };
                 console.log("Local Python server offline. Using in-browser JS BPM engine...");
             }
 
-            // Client-Side Fallback BPM Engine kung walang Python backend (Vercel deployment)
             if (!bpm) {
                 const context = ensureAudioContext();
                 const bytes = await file.arrayBuffer();
@@ -438,12 +433,10 @@ const trackLoadRequests = { A: 0, B: 0 };
             }
 
             setStatus(`Deck ${deck}: ${file.name} | BPM ${bpm.toFixed(1)}`);
-            console.log(`[Deck ${deck}] Detected BPM: ${bpm}`);
         } catch (error) {
             if (requestId !== trackLoadRequests[deck]) return;
 
             console.error(`[Deck ${deck}] BPM detection error:`, error);
-
             delete audio.dataset.originalBpm;
 
             if (bpmDisplay) {
@@ -475,17 +468,14 @@ async function analyzeBPM(buffer) {
 
     for (let start = 0; start < buffer.length; start += hop) {
         const end = Math.min(start + hop, buffer.length);
-
         let sum = 0;
         let count = 0;
 
         for (let i = start; i < end; i += 2) {
             let sample = 0;
-
             for (let channel = 0; channel < channelCount; channel++) {
                 sample += channels[channel][i] || 0;
             }
-
             sample /= channelCount;
             sum += sample * sample;
             count++;
@@ -504,7 +494,6 @@ async function analyzeBPM(buffer) {
     for (let i = 0; i < envelope.length; i++) {
         mean += envelope[i];
     }
-
     mean /= envelope.length;
 
     for (let i = 1; i < envelope.length; i++) {
@@ -518,7 +507,6 @@ async function analyzeBPM(buffer) {
 
     for (let bpm = 60; bpm <= 200; bpm += 0.25) {
         const lag = Math.round(onsetRate * 60 / bpm);
-
         if (lag < 1 || lag >= onset.length) continue;
 
         let score = 0;
@@ -568,18 +556,11 @@ function syncTrack(deck) {
         return;
     }
 
-    const desiredRate =
-        (sourceBpm * source.playbackRate) / targetBpm;
-
+    const desiredRate = (sourceBpm * source.playbackRate) / targetBpm;
     const slider = \$(`pitch${deck}`);
 
-    const minRate = slider
-        ? Math.max(0.1, 1 + Number(slider.min || -50) / 100)
-        : 0.5;
-
-    const maxRate = slider
-        ? 1 + Number(slider.max || 50) / 100
-        : 1.5;
+    const minRate = slider ? Math.max(0.1, 1 + Number(slider.min || -50) / 100) : 0.5;
+    const maxRate = slider ? 1 + Number(slider.max || 50) / 100 : 1.5;
 
     const newRate = clamp(desiredRate, minRate, maxRate);
 
@@ -597,16 +578,11 @@ function syncTrack(deck) {
         Number.isFinite(target.duration) && target.duration > 0
     ) {
         const progress = source.currentTime / source.duration;
-
         target.currentTime = clamp(progress, 0, 1) * target.duration;
-
         if (target.paused) playTrack(deck);
     }
 
-    setStatus(
-        `Deck ${deck} synced to Deck ${otherDeck}. ` +
-        `Estimated tempo: ${(targetBpm * newRate).toFixed(1)} BPM.`
-    );
+    setStatus(`Deck ${deck} synced to Deck ${otherDeck}.`);
 }
 
 /* ===================== PITCH CONTROL ===================== */
@@ -624,8 +600,7 @@ function updatePitch(deck) {
     audio.playbackRate = rate;
 
     if (display) {
-        display.textContent =
-            `${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`;
+        display.textContent = `${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`;
     }
 }
 
@@ -639,16 +614,11 @@ function resetPitch(deck) {
 
 ["A", "B"].forEach(deck => {
     \$(`pitch${deck}`)?.addEventListener("input", () => updatePitch(deck));
-
     \$(`play${deck}`)?.addEventListener("click", () => playTrack(deck));
     \$(`pause${deck}`)?.addEventListener("click", () => pauseTrack(deck));
     \$(`cue${deck}`)?.addEventListener("click", () => cueTrack(deck));
     \$(`sync${deck}`)?.addEventListener("click", () => syncTrack(deck));
-
-    \$(`pitchReset${deck}`)?.addEventListener(
-        "click",
-        () => resetPitch(deck)
-    );
+    \$(`pitchReset${deck}`)?.addEventListener("click", () => resetPitch(deck));
 });
 
 /* ===================== TIME DISPLAY ===================== */
@@ -668,11 +638,9 @@ function formatTime(seconds) {
 
     function updateTime() {
         const display = \$(`timeDisplay${deck}`);
-
         if (display) {
             display.textContent = formatTime(audio.currentTime);
         }
-
         drawMasterOverview();
     }
 
@@ -681,170 +649,18 @@ function formatTime(seconds) {
     });
 });
 
-
-/* ===================== JOG WHEEL / SCRATCH ===================== */
-
-["A", "B"].forEach(deck => {
-    const audio = \$(`audio${deck}`);
-    const jog = \$(`jog${deck}`);
-
-    if (!audio || !jog || jog.dataset.jogInitialized === "true") return;
-
-    jog.dataset.jogInitialized = "true";
-
-    let dragging = false;
-    let lastAngle = 0;
-    let totalRotation = 0;
-    let wasPlaying = false;
-    let basePlaybackRate = 1;
-
-    const SCRATCH_SEEK_SPEED = 0.035;
-    const SCRATCH_RATE_SPEED = 0.12;
-
-    function getPointerAngle(event) {
-        const rect = jog.getBoundingClientRect();
-
-        return Math.atan2(
-            event.clientY - (rect.top + rect.height / 2),
-            event.clientX - (rect.left + rect.width / 2)
-        ) * (180 / Math.PI);
-    }
-
-    function updateRotation() {
-        jog.style.setProperty("--jog-rotation", `${totalRotation}deg`);
-    }
-
-    function updateJogState() {
-        if (dragging) return;
-
-        jog.classList.toggle("playing", !audio.paused && !audio.ended);
-    }
-
-    audio.addEventListener("play", updateJogState);
-    audio.addEventListener("pause", updateJogState);
-    audio.addEventListener("ended", updateJogState);
-
-    jog.addEventListener("pointerdown", event => {
-        if (event.button !== 0 || dragging) return;
-
-        dragging = true;
-        wasPlaying = !audio.paused;
-        basePlaybackRate = audio.playbackRate || 1;
-        lastAngle = getPointerAngle(event);
-
-        jog.classList.add("scratching");
-        jog.classList.remove("playing");
-        jog.style.cursor = "grabbing";
-
-        try {
-            jog.setPointerCapture(event.pointerId);
-        } catch (_) {}
-
-        event.preventDefault();
-    });
-
-    jog.addEventListener("pointermove", event => {
-        if (!dragging) return;
-
-        const angle = getPointerAngle(event);
-        let delta = angle - lastAngle;
-
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-
-        lastAngle = angle;
-        totalRotation += delta;
-        updateRotation();
-
-        if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
-            return;
-        }
-
-        const nextTime =
-            audio.currentTime + delta * SCRATCH_SEEK_SPEED;
-
-        audio.currentTime = clamp(nextTime, 0, audio.duration);
-
-        if (wasPlaying && !audio.paused) {
-            const rateChange = delta * SCRATCH_RATE_SPEED;
-
-            audio.playbackRate = clamp(
-                basePlaybackRate + rateChange,
-                0.1,
-                3
-            );
-        }
-
-        drawMasterOverview();
-    });
-
-    function finishScratch() {
-        if (!dragging) return;
-
-        dragging = false;
-
-        jog.classList.remove("scratching");
-        jog.style.cursor = "grab";
-
-        audio.playbackRate = basePlaybackRate;
-
-        if (wasPlaying) {
-            if (audio.paused) {
-                audio.play().catch(error => {
-                    console.warn("Could not resume Deck " + deck, error);
-                });
-            }
-            jog.classList.add("playing");
-        } else {
-            jog.classList.remove("playing");
-        }
-
-        updateRotation();
-        drawMasterOverview();
-    }
-
-    jog.addEventListener("pointerup", finishScratch);
-    jog.addEventListener("pointercancel", finishScratch);
-    jog.addEventListener("lostpointercapture", finishScratch);
-
-    jog.style.cursor = "grab";
-    jog.style.touchAction = "none";
-
-    updateRotation();
-});
-
-
-/* ===================== CHANNEL LEVEL ===================== */
-
-document.querySelectorAll(".vertical-slider").forEach(slider => {
-    slider.addEventListener("input", () => {
-        const deck =
-            slider.id === "levelA" ? "A" :
-            slider.id === "levelB" ? "B" : null;
-
-        if (!deck) return;
-
-        deckBaseLevels[deck] = clamp(Number(slider.value), 0, 100);
-        applyChannelGain(deck);
-    });
-});
-
 /* ===================== 10-BAND EQUALIZER ===================== */
 
 function updateEqualizer() {
     if (!audioCtx) return;
 
-    const enabled = \$("eqOnCheck")
-        ? \$("eqOnCheck").checked
-        : true;
-
+    const enabled = $("eqOnCheck") ? $("eqOnCheck").checked : true;
     const masterSlider = \$("eqMasterGain");
     const masterDb = masterSlider ? Number(masterSlider.value) : 0;
     const masterLinear = Math.pow(10, masterDb / 20);
 
     if (\$("eqMasterValue")) {
-        \$("eqMasterValue").textContent =
-            `${masterDb > 0 ? "+" : ""}${masterDb} dB`;
+        \$("eqMasterValue").textContent = `${masterDb > 0 ? "+" : ""}${masterDb} dB`;
     }
 
     ["A", "B"].forEach(deck => {
@@ -854,11 +670,7 @@ function updateEqualizer() {
         if (filters) {
             filters.forEach((filter, index) => {
                 const frequency = eqFrequencies[index];
-
-                const slider = document.querySelector(
-                    `#equalizerPanel [data-frequency="${frequency}"]`
-                );
-
+                const slider = document.querySelector(`#equalizerPanel [data-frequency="${frequency}"]`);
                 const db = slider ? Number(slider.value) : 0;
 
                 filter.gain.setTargetAtTime(
@@ -868,10 +680,8 @@ function updateEqualizer() {
                 );
 
                 const output = \$(`eqValue${frequency}`);
-
                 if (output) {
-                    output.textContent =
-                        `${db > 0 ? "+" : ""}${db} dB`;
+                    output.textContent = `${db > 0 ? "+" : ""}${db} dB`;
                 }
             });
         }
@@ -888,11 +698,11 @@ function updateEqualizer() {
 
 function applyEqualizerPreset(presetName) {
     const presets = {
-        "Flat":        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "Flat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "Club Master": [5, 4, 3, 0, -1, 1, 3, 4, 4, 3],
-        "Deep Bass":   [8, 7, 5, 3, 1, 0, 0, 0, 1, 1],
+        "Deep Bass": [8, 7, 5, 3, 1, 0, 0, 0, 1, 1],
         "Vocal Boost": [-2, -1, 0, 2, 4, 5, 4, 2, 0, -1],
-        "Electronic":  [5, 4, 2, 0, -2, 1, 3, 4, 3, 2]
+        "Electronic": [5, 4, 2, 0, -2, 1, 3, 4, 3, 2]
     };
 
     const values = presets[presetName];
@@ -900,34 +710,8 @@ function applyEqualizerPreset(presetName) {
 
     values.forEach((value, index) => {
         const frequency = eqFrequencies[index];
-
-        const slider = document.querySelector(
-            `#equalizerPanel [data-frequency="${frequency}"]`
-        );
-
+        const slider = document.querySelector(`#equalizerPanel [data-frequency="${frequency}"]`);
         if (slider) slider.value = value;
-    });
-
-    updateEqualizer();
-}
-
-function initializeEqualizerControls() {
-    const panel = \$("equalizerPanel");
-
-    if (!panel || panel.dataset.eqInitialized === "true") return;
-
-    panel.dataset.eqInitialized = "true";
-
-    panel.querySelectorAll('input[type="range"]').forEach(slider => {
-        slider.addEventListener("input", updateEqualizer);
-    });
-
-    \$("eqOnCheck")?.addEventListener("change", updateEqualizer);
-
-    \$("eqMasterGain")?.addEventListener("input", updateEqualizer);
-
-    \$("eqPreset")?.addEventListener("change", event => {
-        applyEqualizerPreset(event.target.value);
     });
 
     updateEqualizer();
@@ -937,146 +721,31 @@ function toggleEqualizer() {
     \$("equalizerPanel")?.classList.toggle("eq-open");
 }
 
-/* ===================== MIXER KNOBS ===================== */
+function initializeEqualizerControls() {
+    const panel = \$("equalizerPanel");
+    if (!panel || panel.dataset.eqInitialized === "true") return;
 
-document.querySelectorAll(".mixer-strip").forEach((strip, stripIndex) => {
-    const deck = stripIndex === 0 ? "A" : "B";
-    const knobs = strip.querySelectorAll(".knob-small");
-    const labels = strip.querySelectorAll(".eq-label");
+    panel.dataset.eqInitialized = "true";
 
-    knobs.forEach((knob, knobIndex) => {
-        let value = 50;
-        let startY = 0;
-        let dragging = false;
-
-        function applyKnobValue() {
-            const label = labels[knobIndex]?.textContent
-                .trim()
-                .toUpperCase();
-
-            knob.style.transform =
-                `rotate(${(value - 50) * 2.5}deg)`;
-
-            if (!audioCtx) return;
-
-            const filters = deckFilters[deck];
-            const fx = deckEffects[deck];
-            const normalized = (value - 50) / 5;
-
-            if (label === "GAIN") {
-                deckGainKnobValues[deck] = value;
-                applyChannelGain(deck);
-            } else if (label === "HIGH" && filters) {
-                filters.high.gain.setTargetAtTime(
-                    normalized,
-                    audioCtx.currentTime,
-                    0.02
-                );
-            } else if (label === "MID" && filters) {
-                filters.mid.gain.setTargetAtTime(
-                    normalized,
-                    audioCtx.currentTime,
-                    0.02
-                );
-            } else if (label === "LOW" && filters) {
-                filters.low.gain.setTargetAtTime(
-                    normalized,
-                    audioCtx.currentTime,
-                    0.02
-                );
-            } else if (label === "FX" && fx) {
-                const amount = value / 100;
-
-                fx.wet.gain.setTargetAtTime(
-                    amount * 0.8,
-                    audioCtx.currentTime,
-                    0.02
-                );
-
-                fx.feedback.gain.setTargetAtTime(
-                    amount * 0.45,
-                    audioCtx.currentTime,
-                    0.02
-                );
-            }
-        }
-
-        knob.addEventListener("pointerdown", event => {
-            dragging = true;
-            startY = event.clientY;
-
-            try {
-                knob.setPointerCapture(event.pointerId);
-            } catch (_) {}
-
-            event.preventDefault();
-        });
-
-        knob.addEventListener("pointermove", event => {
-            if (!dragging) return;
-
-            value = clamp(value + startY - event.clientY, 0, 100);
-            startY = event.clientY;
-
-            applyKnobValue();
-        });
-
-        function stopDragging() {
-            dragging = false;
-        }
-
-        knob.addEventListener("pointerup", stopDragging);
-        knob.addEventListener("pointercancel", stopDragging);
-        knob.addEventListener("lostpointercapture", stopDragging);
-
-        applyKnobValue();
+    panel.querySelectorAll('input[type="range"]').forEach(slider => {
+        slider.addEventListener("input", updateEqualizer);
     });
-});
 
-/* ===================== LED METERS ===================== */
+    \$("eqOnCheck")?.addEventListener("change", updateEqualizer);
+    \$("eqMasterGain")?.addEventListener("input", updateEqualizer);
 
-function updateLedMeter(deck) {
-    const analyser = deckAnalysers[deck];
-    const container = \$(`meter${deck}`);
-
-    if (!analyser || !container) return;
-
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-
-    let sum = 0;
-
-    for (let i = 0; i < data.length; i++) {
-        sum += data[i];
-    }
-
-    const average = sum / Math.max(1, data.length);
-    const active = Math.round((average / 300) * 20);
-    const segments = container.querySelectorAll(".led-segment");
-
-    segments.forEach((segment, index) => {
-        const level = segments.length - 1 - index;
-
-        if (level < active) {
-            if (level >= 6) {
-                segment.style.background = "#ff3030";
-            } else if (level >= 4) {
-                segment.style.background = "#ffe44d";
-            } else {
-                segment.style.background = overviewColors[deck];
-            }
-        } else {
-            segment.style.background = "#111";
-        }
+    \$("eqPreset")?.addEventListener("change", event => {
+        applyEqualizerPreset(event.target.value);
     });
+
+    updateEqualizer();
 }
 
-/* ===================== PARTIAL WAVEFORM ENGINE ===================== */
+/* ===================== WAVEFORMS ===================== */
 
 function initializePartialWaveforms() {
     ["A", "B"].forEach(deck => {
         const wf = partialWaveforms[deck];
-
         wf.canvas = \$(`deck${deck}Waveform`);
         wf.ctx = wf.canvas ? wf.canvas.getContext("2d") : null;
         wf.audioEl = \$(`audio${deck}`);
@@ -1090,7 +759,6 @@ function initializePartialWaveforms() {
 
 async function loadTrackWaveform(deck, file, audioElement) {
     const wf = partialWaveforms[deck];
-
     if (!wf || !file || !audioElement) return;
 
     wf.audioEl = audioElement;
@@ -1104,9 +772,7 @@ async function loadTrackWaveform(deck, file, audioElement) {
         const buffer = await context.decodeAudioData(bytes.slice(0));
 
         if (wf.audioEl !== audioElement) return;
-
         wf.buffer = buffer;
-        console.log(`Deck ${deck}: moving waveform loaded.`);
     } catch (error) {
         console.error(`Deck ${deck} waveform decode error:`, error);
     }
@@ -1117,7 +783,6 @@ function renderPartialWaveforms() {
 
     ["A", "B"].forEach(deck => {
         const wf = partialWaveforms[deck];
-
         if (!wf.canvas || !wf.ctx) return;
 
         const canvas = wf.canvas;
@@ -1142,516 +807,134 @@ function renderPartialWaveforms() {
         ctx.fillStyle = "#060911";
         ctx.fillRect(0, 0, width, height);
 
-        ctx.strokeStyle = "#172330";
-        ctx.lineWidth = 1;
+        if (wf.buffer && wf.audioEl) {
+            const duration = wf.audioEl.duration || 1;
+            const currentTime = wf.audioEl.currentTime || 0;
+            const channelData = wf.buffer.getChannelData(0);
+            const samples = channelData.length;
 
-        for (let x = 0; x <= width; x += 32) {
+            const windowSize = 4.0;
+            const startTime = Math.max(0, currentTime - windowSize / 2);
+            const endTime = Math.min(duration, startTime + windowSize);
+
+            const startSample = Math.floor((startTime / duration) * samples);
+            const endSample = Math.floor((endTime / duration) * samples);
+            const step = Math.max(1, Math.floor((endSample - startSample) / width));
+
+            ctx.strokeStyle = wf.color;
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
+
+            let xIndex = 0;
+            for (let i = startSample; i < endSample; i += step) {
+                const sample = channelData[i] || 0;
+                const y = (height / 2) + sample * (height / 2);
+                if (xIndex === 0) ctx.moveTo(xIndex, y);
+                else ctx.lineTo(xIndex, y);
+                xIndex++;
+            }
             ctx.stroke();
         }
-
-        const centerY = height / 2;
-
-        ctx.strokeStyle = "#314155";
-        ctx.beginPath();
-        ctx.moveTo(0, centerY);
-        ctx.lineTo(width, centerY);
-        ctx.stroke();
-
-        const audio = wf.audioEl;
-        const buffer = wf.buffer;
-
-        if (!audio || !buffer) {
-            ctx.fillStyle = "#718096";
-            ctx.font = "11px sans-serif";
-            ctx.fillText(`LOAD TRACK ${deck}`, 10, centerY - 8);
-            return;
-        }
-
-        const channelData = buffer.getChannelData(0);
-        const sampleRate = buffer.sampleRate;
-        const windowSeconds = 8;
-
-        const samplesPerPixel = windowSeconds * sampleRate / width;
-        const currentSample = Math.floor(audio.currentTime * sampleRate);
-
-        for (let x = 0; x < width; x++) {
-            const offset = x - width / 2;
-
-            const start = Math.floor(
-                currentSample + offset * samplesPerPixel
-            );
-
-            if (start < 0 || start >= channelData.length) continue;
-
-            const end = Math.min(
-                channelData.length,
-                start + Math.max(1, Math.ceil(samplesPerPixel))
-            );
-
-            let min = 5;
-            let max = -5;
-
-            for (let i = start; i < end; i++) {
-                const sample = channelData[i];
-
-                if (sample < min) min = sample;
-                if (sample > max) max = sample;
-            }
-
-            const amplitude = Math.max(Math.abs(min), Math.abs(max));
-            const barHeight = Math.max(2, amplitude * height * 0.82);
-
-            if (amplitude > 0.58) {
-                ctx.fillStyle = "#facc15";
-            } else if (amplitude > 0.35) {
-                ctx.fillStyle = deck === "A" ? "#00d458" : "#2196f3";
-            } else {
-                ctx.fillStyle = wf.color;
-            }
-
-            ctx.fillRect(x, centerY - barHeight / 2, 1.5, barHeight);
-        }
-
-        // Fixed playhead
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(width / 2, 0);
-        ctx.lineTo(width / 2, height);
-        ctx.stroke();
-
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.moveTo(width / 2 - 5, 0);
-        ctx.lineTo(width / 2 + 5, 0);
-        ctx.lineTo(width / 2, 6);
-        ctx.closePath();
-        ctx.fill();
     });
+
+    ["A", "B"].forEach(deck => updateLedMeter(deck));
 }
-
-
-function enableDraggableWaveforms() {
-    const WINDOW_SECONDS = 8;
-
-    ["A", "B"].forEach(deck => {
-        const canvas = document.getElementById(`deck${deck}Waveform`);
-        const audio = document.getElementById(`audio${deck}`);
-
-        if (!canvas || !audio || canvas.dataset.dragEnabled === "true") {
-            return;
-        }
-
-        canvas.dataset.dragEnabled = "true";
-
-        const wrapper = canvas.parentElement;
-        let dragging = false;
-        let startX = 0;
-        let startTime = 0;
-        let moved = false;
-
-        wrapper.style.cursor = "grab";
-        wrapper.style.touchAction = "none";
-
-        function seekTo(time) {
-            if (!audio.src || !Number.isFinite(audio.duration)) return;
-            if (audio.duration <= 0) return;
-
-            audio.currentTime = Math.max(
-                0,
-                Math.min(time, audio.duration)
-            );
-
-            if (typeof drawMasterOverview === "function") {
-                drawMasterOverview();
-            }
-        }
-
-        function secondsPerPixel() {
-            const rect = canvas.getBoundingClientRect();
-            return rect.width > 0 ? WINDOW_SECONDS / rect.width : 0;
-        }
-
-        wrapper.addEventListener("pointerdown", event => {
-            if (event.button !== 0) return;
-            if (!audio.src || !Number.isFinite(audio.duration)) return;
-
-            dragging = true;
-            moved = false;
-            startX = event.clientX;
-            startTime = audio.currentTime;
-
-            wrapper.style.cursor = "grabbing";
-
-            try {
-                wrapper.setPointerCapture(event.pointerId);
-            } catch (error) {}
-
-            event.preventDefault();
-        });
-
-        wrapper.addEventListener("pointermove", event => {
-            if (!dragging) return;
-
-            const deltaX = event.clientX - startX;
-
-            if (Math.abs(deltaX) > 2) {
-                moved = true;
-            }
-
-            if (!moved) return;
-
-            const newTime = startTime - deltaX * secondsPerPixel();
-
-            seekTo(newTime);
-        });
-
-        function stopDragging() {
-            if (!dragging) return;
-
-            dragging = false;
-            wrapper.style.cursor = "grab";
-
-            setTimeout(() => {
-                moved = false;
-            }, 100);
-        }
-
-        wrapper.addEventListener("pointerup", stopDragging);
-        wrapper.addEventListener("pointercancel", stopDragging);
-        wrapper.addEventListener("lostpointercapture", stopDragging);
-
-        wrapper.addEventListener("click", event => {
-            if (moved) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-        }, true);
-    });
-}
-
-/* ===================== MASTER WAVEFORM LOADING ===================== */
 
 async function loadOverviewWaveform(deck, file) {
-    if (!file || !\$("masterWaveform")) return;
-
     try {
         const context = ensureAudioContext();
         if (!context) return;
-
         const bytes = await file.arrayBuffer();
         const buffer = await context.decodeAudioData(bytes.slice(0));
-
-        const sampleCount = 5000;
-        const samples = new Float32Array(sampleCount);
-        const channels = [];
-
-        for (let c = 0; c < buffer.numberOfChannels; c++) {
-            channels.push(buffer.getChannelData(c));
-        }
-
-        for (let i = 0; i < sampleCount; i++) {
-            const start = Math.floor(i * buffer.length / sampleCount);
-
-            const end = Math.max(
-                start + 1,
-                Math.floor((i + 1) * buffer.length / sampleCount)
-            );
-
-            let peak = 0;
-
-            for (const channelData of channels) {
-                for (let j = start; j < Math.min(end, buffer.length); j++) {
-                    peak = Math.max(peak, Math.abs(channelData[j]));
-                }
-            }
-
-            samples[i] = peak;
-        }
-
-        overviewBuffers[deck] = samples;
+        overviewBuffers[deck] = buffer;
         drawMasterOverview();
-    } catch (error) {
-        console.error(`Waveform decode failed for Deck ${deck}:`, error);
+    } catch (e) {
+        console.error("Overview waveform error:", e);
     }
 }
-
-/* ===================== MASTER WAVEFORM DRAWING ===================== */
 
 function drawMasterOverview() {
-    const canvas = \$("masterWaveform");
+    const canvas = \$("masterOverviewCanvas");
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-
     if (!width || !height) return;
 
-    const dpr = window.devicePixelRatio || 1;
-
-    if (
-        canvas.width !== Math.round(width * dpr) ||
-        canvas.height !== Math.round(height * dpr)
-    ) {
-        canvas.width = Math.round(width * dpr);
-        canvas.height = Math.round(height * dpr);
+    if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
     }
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-
-    ctx.fillStyle = "#05080c";
+    ctx.fillStyle = "#060911";
     ctx.fillRect(0, 0, width, height);
 
-    for (let x = 0; x <= width; x += 50) {
-        ctx.strokeStyle = x % 160 === 0 ? "#2a3a47" : "#111c25";
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-    }
-
-    ctx.strokeStyle = "#31414e";
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
-    ctx.stroke();
-
     ["A", "B"].forEach(deck => {
-        const samples = overviewBuffers[deck];
+        const buf = overviewBuffers[deck];
         const audio = \$(`audio${deck}`);
+        if (!buf) return;
 
-        const centerY = deck === "A" ? height * 0.27 : height * 0.73;
-        const amplitudeLimit = height * 0.20;
+        const data = buf.getChannelData(0);
+        const step = Math.ceil(data.length / width);
+        ctx.strokeStyle = overviewColors[deck];
+        ctx.lineWidth = 1;
+        ctx.beginPath();
 
-        if (samples) {
-            const barWidth = width / samples.length;
-
-            ctx.fillStyle = overviewColors[deck];
-            ctx.globalAlpha = 0.9;
-
-            for (let i = 0; i < samples.length; i++) {
-                const barHeight = Math.max(
-                    1,
-                    samples[i] * amplitudeLimit
-                );
-
-                ctx.fillRect(
-                    i * barWidth,
-                    centerY - barHeight,
-                    Math.max(1, barWidth * 0.75),
-                    barHeight * 2
-                );
+        for (let x = 0; x < width; x++) {
+            let min = 1.0;
+            let max = -1.0;
+            for (let j = 0; j < step; j++) {
+                const datum = data[(x * step) + j];
+                if (datum < min) min = datum;
+                if (datum > max) max = datum;
             }
+            const yMin = (1 + min) * height / 2;
+            const yMax = (1 + max) * height / 2;
+            ctx.moveTo(x, yMin);
+            ctx.lineTo(x, yMax);
+        }
+        ctx.stroke();
 
-            ctx.globalAlpha = 1;
+        if (audio && audio.duration) {
+            const progress = audio.currentTime / audio.duration;
+            const playheadX = progress * width;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.fillRect(playheadX, 0, 2, height);
+        }
+    });
+}
+
+function updateLedMeter(deck) {
+    const analyser = deckAnalysers[deck];
+    const container = \$(`meter${deck}`);
+    if (!analyser || !container) return;
+
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+        sum += data[i];
+    }
+    const average = sum / Math.max(1, data.length);
+    const active = Math.round((average / 300) * 20);
+    const segments = container.querySelectorAll(".led-segment");
+
+    segments.forEach((segment, index) => {
+        const level = segments.length - 1 - index;
+        if (level < active) {
+            if (level >= 6) segment.style.background = "#ff3030";
+            else if (level >= 4) segment.style.background = "#ffe44d";
+            else segment.style.background = overviewColors[deck];
         } else {
-            ctx.fillStyle = "#758392";
-            ctx.font = "11px sans-serif";
-            ctx.fillText(`LOAD TRACK ${deck}`, 10, centerY + 4);
-        }
-
-        if (
-            audio &&
-            Number.isFinite(audio.duration) &&
-            audio.duration > 0
-        ) {
-            const progress = clamp(
-                audio.currentTime / audio.duration,
-                0,
-                1
-            );
-
-            const x = progress * width;
-
-            ctx.strokeStyle = overviewColors[deck];
-            ctx.lineWidth = 2;
-            ctx.shadowColor = overviewColors[deck];
-            ctx.shadowBlur = 6;
-
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = overviewColors[deck];
-
-            ctx.beginPath();
-            ctx.moveTo(x - 5, 0);
-            ctx.lineTo(x + 5, 0);
-            ctx.lineTo(x, 7);
-            ctx.closePath();
-            ctx.fill();
+            segment.style.background = "#111";
         }
     });
 }
 
-/* ===================== MASTER WAVEFORM SEEKING ===================== */
-
-(function setupMasterWaveformSeeking() {
-    const canvas = $("masterWaveform");
-    if (!canvas) return;
-
-    if (canvas.dataset.masterSeekInitialized === "true") return;
-    canvas.dataset.masterSeekInitialized = "true";
-
-    let selectedDeck = null;
-    let dragging = false;
-
-    canvas.style.cursor = "crosshair";
-    canvas.style.touchAction = "none";
-
-    function selectDeck(event) {
-        const rect = canvas.getBoundingClientRect();
-        const y = event.clientY - rect.top;
-
-        return y < rect.height / 2 ? "A" : "B";
-    }
-
-    function seek(event) {
-        if (!selectedDeck) return;
-
-        const audio = $(`audio${selectedDeck}`);
-        const rect = canvas.getBoundingClientRect();
-
-        if (
-            !audio ||
-            !audio.src ||
-            !Number.isFinite(audio.duration) ||
-            audio.duration <= 0 ||
-            rect.width <= 0
-        ) {
-            return;
-        }
-
-        const progress = clamp(
-            (event.clientX - rect.left) / rect.width,
-            0,
-            1
-        );
-
-        audio.currentTime = progress * audio.duration;
-        drawMasterOverview();
-
-        setStatus(
-            `Seeking Deck ${selectedDeck}: ${formatTime(audio.currentTime)}`
-        );
-    }
-
-    canvas.addEventListener("pointerdown", event => {
-        selectedDeck = selectDeck(event);
-
-        const audio = $(`audio${selectedDeck}`);
-
-        if (
-            !audio ||
-            !audio.src ||
-            !Number.isFinite(audio.duration) ||
-            audio.duration <= 0
-        ) {
-            selectedDeck = null;
-            return;
-        }
-
-        dragging = true;
-
-        try {
-            canvas.setPointerCapture(event.pointerId);
-        } catch (_) {}
-
-        seek(event);
-        event.preventDefault();
-    });
-
-    canvas.addEventListener("pointermove", event => {
-        if (!dragging) return;
-
-        seek(event);
-        event.preventDefault();
-    });
-
-    function stopSeeking() {
-        dragging = false;
-        selectedDeck = null;
-    }
-
-    canvas.addEventListener("pointerup", stopSeeking);
-    canvas.addEventListener("pointercancel", stopSeeking);
-    canvas.addEventListener("lostpointercapture", stopSeeking);
-})();
-
-/* ===================== MASTER WAVEFORM REFRESH ===================== */
-
-["A", "B"].forEach(deck => {
-    const audio = $(`audio${deck}`);
-    if (!audio) return;
-
-    [
-        "timeupdate",
-        "loadedmetadata",
-        "play",
-        "pause",
-        "seeked",
-        "ended"
-    ].forEach(eventName => {
-        audio.addEventListener(eventName, drawMasterOverview);
-    });
-});
-
-function animateMasterOverview() {
-    drawMasterOverview();
-
-    ["A", "B"].forEach(deck => {
-        updateLedMeter(deck);
-    });
-
-    requestAnimationFrame(animateMasterOverview);
-}
-
-/* ===================== INITIALIZE ===================== */
-
-function initializeDJStudio() {
-    initializeEqualizerControls();
-    initializePartialWaveforms();
-
-    updateCrossfader();
-    drawMasterOverview();
-
-    if (!masterAnimationStarted) {
-        masterAnimationStarted = true;
-        animateMasterOverview();
-    }
-
-    setStatus("ALONTE DJ PRO v1.0 — Audio Console Ready");
-}
-
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initializeDJStudio);
-} else {
-    initializeDJStudio();
-}
-
-window.addEventListener("resize", drawMasterOverview);
-
-initializePartialWaveforms();
-enableDraggableWaveforms();
-
-/* ===================== VERCEL / GLOBAL SCOPE EXPORTS ===================== */
-// I-bind lahat sa window object para maging accessible sa HTML onclick attributes
+/* ===================== GLOBAL WINDOW BINDINGS (Vercel Fix) ===================== */
 window.playTrack = playTrack;
 window.pauseTrack = pauseTrack;
 window.cueTrack = cueTrack;
 window.syncTrack = syncTrack;
-window.updatePitch = updatePitch;
-window.resetPitch = resetPitch;
 window.toggleEqualizer = toggleEqualizer;
-window.updateCrossfader = updateCrossfader;
