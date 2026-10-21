@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,8 +20,6 @@
 </head>
 
 <body>
-
-  
 
   <!-- MASTER EQUALIZER -->
   <div id="equalizerPanel" class="eq-console">
@@ -226,7 +223,8 @@
       <span>DECK B <i class="deck-b-dot"></i></span>
     </div>
 
-    <canvas id="masterWaveform"></canvas>
+    <!-- Pinalitan natin ang ID para magtugma sa JavaScript -->
+    <canvas id="masterOverviewCanvas"></canvas>
 
   </section>
 
@@ -335,13 +333,14 @@
       </div>
 
       <p id="nameA" class="track-name text-truncate">No track loaded</p>
+      
       <!-- DECK A TIMELINE -->
-<div class="deck-timeline-box">
-  <div class="canvas-wrapper">
-    <div class="red-playhead-line"></div>
-    <canvas id="deckAWaveform" width="500" height="45"></canvas>
-  </div>
-</div>
+      <div class="deck-timeline-box">
+        <div class="canvas-wrapper">
+          <div class="red-playhead-line"></div>
+          <canvas id="deckAWaveform" width="500" height="45"></canvas>
+        </div>
+      </div>
     </article>
 
     <!-- AUDIO MIXER -->
@@ -423,41 +422,39 @@
       </div>
 
      <!-- CROSSFADER -->
-<div class="crossfader-container">
-  <label class="crossfader-label" for="crossfader">
-    Crossfader
-  </label>
+     <div class="crossfader-container">
+       <label class="crossfader-label" for="crossfader">
+         Crossfader
+       </label>
 
-  <div class="crossfader-track-wrapper">
-    <!-- Left Arrow (Deck A) -->
-    <button type="button" class="cf-arrow cf-left" id="cfLeftBtn" title="Quick Switch to Deck A">&#9664;</button>
+       <div class="crossfader-track-wrapper">
+         <button type="button" class="cf-arrow cf-left" id="cfLeftBtn" title="Quick Switch to Deck A">&#9664;</button>
 
-    <div class="crossfader-ticks">
-      <span class="tick long"></span>
-      <span class="tick short"></span>
-      <span class="tick short"></span>
-      <span class="tick short"></span>
-      <span class="tick medium"></span>
-      <span class="tick short"></span>
-      <span class="tick short"></span>
-      <span class="tick short"></span>
-      <span class="tick long"></span>
-    </div>
+         <div class="crossfader-ticks">
+           <span class="tick long"></span>
+           <span class="tick short"></span>
+           <span class="tick short"></span>
+           <span class="tick short"></span>
+           <span class="tick medium"></span>
+           <span class="tick short"></span>
+           <span class="tick short"></span>
+           <span class="tick short"></span>
+           <span class="tick long"></span>
+         </div>
 
-    <input
-      type="range"
-      id="crossfader"
-      class="custom-crossfader"
-      min="0"
-      max="100"
-      value="50"
-      aria-label="Crossfader"
-    >
+         <input
+           type="range"
+           id="crossfader"
+           class="custom-crossfader"
+           min="0"
+           max="100"
+           value="50"
+           aria-label="Crossfader"
+         >
 
-    <!-- Right Arrow (Deck B) -->
-    <button type="button" class="cf-arrow cf-right" id="cfRightBtn" title="Quick Switch to Deck B">&#9654;</button>
-  </div>
-</div>
+         <button type="button" class="cf-arrow cf-right" id="cfRightBtn" title="Quick Switch to Deck B">&#9654;</button>
+       </div>
+     </div>
 
       <p id="status" role="status">Audio Console Ready</p>
 
@@ -567,18 +564,20 @@
       <p id="nameB" class="track-name text-truncate">No track loaded</p>
 
       <!-- DECK B TIMELINE -->
-<div class="deck-timeline-box">
-  <div class="canvas-wrapper">
-    <div class="red-playhead-line"></div>
-    <canvas id="deckBWaveform" width="500" height="45"></canvas>
-  </div>
-</div>
+      <div class="deck-timeline-box">
+        <div class="canvas-wrapper">
+          <div class="red-playhead-line"></div>
+          <canvas id="deckBWaveform" width="500" height="45"></canvas>
+        </div>
+      </div>
 
     </article>
 
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- SIGURUHING TAMA ANG PANGALAN NG JS FILE SA GITHUB MO (Case-Sensitive) -->
   <script src="./Script.js"></script>
 
 </body>
